@@ -23,8 +23,25 @@ class Settings(BaseSettings):
     # Topology sync interval (seconds)
     topology_sync_interval: int = 30
 
+    # LLM
+    llm_provider: str = "deepseek"
+    deepseek_api_key: str = ""
+    deepseek_model: str = "deepseek-chat"
+    dashscope_api_key: str = ""
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    qwen_model: str = "qwen-plus"
+    ark_api_key: str = ""
+    ark_model: str = "doubao-pro-4k"
+    openrouter_api_key: str = ""
+    openrouter_model: str = "deepseek/deepseek-chat"
+
+    # OpenTelemetry
+    otel_exporter_otlp_endpoint: str = "http://localhost:4318"
+    otel_service_name: str = "zsvirt-observer"
+
     class Config:
         env_file = ".env"
+        extra = "allow"
 
 
 settings = Settings()

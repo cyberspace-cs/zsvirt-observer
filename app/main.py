@@ -31,12 +31,18 @@ async def sync_topology():
     while True:
         try:
             data = await zsvirt.get_full_topology()
-            graph.build_from_zsvirt_data(
-                hosts=data.get("hosts", []),
-                vms=data.get("vms", []),
-                gpus=data.get("gpus", []),
-            )
-            logger.info(f"Topology synced: {graph.stats()}")
+            hosts = data.get("hosts", [])
+            vms = data.get("vms", [])
+            # 只有拿到真实数据时才更新，避免空数据清掉 demo 拓扑
+            if hosts or vms:
+                graph.build_from_zsvirt_data(
+                    hosts=hosts,
+                    vms=vms,
+                    gpus=data.get("gpus", []),
+                )
+                logger.info(f"Topology synced: {graph.stats()}")
+            else:
+                logger.debug("ZSvirt returned empty data, keeping demo topology")
         except Exception as e:
             logger.warning(f"Topology sync failed: {e}")
         await asyncio.sleep(settings.topology_sync_interval)
