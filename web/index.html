@@ -3,320 +3,411 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZSvirt Observer - 全栈可观测平台</title>
+  <title>ZSvirt Observer - AI 根因诊断平台</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f172a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
+      background: #0a0e1a;
       color: #e2e8f0;
       min-height: 100vh;
+      overflow-x: hidden;
     }
-    .header {
-      background: #1e293b;
-      padding: 16px 24px;
-      border-bottom: 1px solid #334155;
+    /* 背景光晕 */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 30% 20%, rgba(52, 211, 153, 0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .container {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+    /* 顶部 Hero */
+    .hero {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .hero .badge {
+      display: inline-block;
+      padding: 6px 16px;
+      background: rgba(52, 211, 153, 0.1);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      border-radius: 20px;
+      font-size: 12px;
+      color: #34d399;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: 42px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #34d399 0%, #60a5fa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+    .hero p {
+      font-size: 18px;
+      color: #94a3b8;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    /* 大按钮 */
+    .demo-btn-wrap {
+      text-align: center;
+      margin: 40px 0;
+    }
+    .demo-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 48px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+      border: none;
+      border-radius: 16px;
+      cursor: pointer;
+      box-shadow: 0 8px 32px rgba(239, 68, 68, 0.4);
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .demo-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(239, 68, 68, 0.5);
+    }
+    .demo-btn:active {
+      transform: translateY(0);
+    }
+    .demo-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .demo-btn .icon { font-size: 24px; }
+    /* 时间线 */
+    .timeline {
+      max-width: 700px;
+      margin: 40px auto;
+      display: none;
+    }
+    .timeline.active { display: block; }
+    .timeline-item {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 0;
+      opacity: 0.3;
+      transition: all 0.5s;
     }
-    .header h1 { font-size: 18px; color: #34d399; }
-    .status { font-size: 12px; color: #94a3b8; }
-    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
-    .card {
-      background: #1e293b;
-      border-radius: 12px;
-      padding: 20px;
-      border: 1px solid #334155;
+    .timeline-item.done { opacity: 1; }
+    .timeline-item.done .dot { background: #34d399; box-shadow: 0 0 12px #34d399; }
+    .timeline-item.current {
+      opacity: 1;
     }
-    .card h2 { font-size: 14px; color: #34d399; margin-bottom: 16px; }
-    /* 拓扑图 */
-    .topology-svg { width: 100%; height: 400px; }
-    .node { cursor: pointer; }
-    .node circle { stroke: #334155; stroke-width: 2; transition: all 0.2s; }
-    .node:hover circle { stroke: #34d399; }
-    .node text { fill: #e2e8f0; font-size: 11px; text-anchor: middle; }
-    .node.host circle { fill: #16a34a; }
-    .node.vm circle { fill: #0d9488; }
-    .node.container circle { fill: #0891b2; }
-    .node.service circle { fill: #6366f1; }
-    .node.agent circle { fill: #7c3aed; }
-    .edge { stroke: #475569; stroke-width: 1.5; fill: none; }
-    /* 根因报告 */
-    .report { font-size: 13px; line-height: 1.8; }
-    .report .root-node {
-      background: #7f1d1d;
-      padding: 12px;
-      border-radius: 8px;
-      margin-bottom: 12px;
-      border-left: 4px solid #ef4444;
+    .timeline-item.current .dot {
+      background: #fbbf24;
+      box-shadow: 0 0 12px #fbbf24;
+      animation: pulse 1.5s infinite;
     }
-    .report .root-node .label { color: #fca5a5; font-size: 11px; }
-    .report .root-node .name { font-size: 16px; font-weight: bold; color: #fff; margin-top: 4px; }
-    .report .summary { color: #e2e8f0; margin: 12px 0; }
-    .report .impact { color: #94a3b8; font-size: 12px; margin: 8px 0; }
-    .report .suggestion {
-      background: #1e3a5f;
-      padding: 10px;
-      border-radius: 6px;
-      border-left: 3px solid #3b82f6;
-      margin-top: 12px;
-      font-size: 12px;
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 12px #fbbf24; }
+      50% { box-shadow: 0 0 24px #fbbf24; }
     }
-    /* 统计卡片 */
-    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-    @media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } }
-    .stat {
-      background: #1e293b;
-      border-radius: 10px;
-      padding: 16px;
-      text-align: center;
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #475569;
+      flex-shrink: 0;
     }
-    .stat .num { font-size: 24px; font-weight: bold; }
-    .stat .label { font-size: 11px; color: #94a3b8; margin-top: 4px; }
-    .stat.host .num { color: #34d399; }
-    .stat.vm .num { color: #14b8a6; }
-    .stat.container .num { color: #06b6d4; }
-    .stat.alert .num { color: #f87171; }
-    /* 按钮 */
-    .btn {
-      background: #34d399;
-      color: #0f172a;
-      border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
+    .timeline-content { flex: 1; }
+    .timeline-title { font-size: 14px; font-weight: 600; }
+    .timeline-desc { font-size: 12px; color: #64748b; margin-top: 2px; }
+    /* 根因报告卡片 */
+    .report-card {
+      max-width: 700px;
+      margin: 30px auto;
+      background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+      border-radius: 20px;
+      padding: 32px;
+      border: 1px solid rgba(52, 211, 153, 0.2);
+      display: none;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.6s ease;
+    }
+    .report-card.show {
+      display: block;
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .report-card .confidence {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(52, 211, 153, 0.15);
+      border-radius: 20px;
       font-size: 13px;
+      color: #34d399;
+      margin-bottom: 20px;
+    }
+    .report-card h2 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #fff;
+    }
+    .report-card .root-cause {
+      color: #f87171;
       font-weight: 600;
     }
-    .btn:hover { background: #10b981; }
-    .btn.danger { background: #ef4444; color: #fff; }
-    .btn.danger:hover { background: #dc2626; }
-    .actions { margin-bottom: 16px; display: flex; gap: 8px; }
-    .empty { text-align: center; color: #64748b; padding: 40px; }
+    .report-card .reasoning {
+      color: #94a3b8;
+      font-size: 14px;
+      line-height: 1.8;
+      margin: 16px 0;
+      padding: 16px;
+      background: rgba(0,0,0,0.2);
+      border-radius: 10px;
+      border-left: 3px solid #3b82f6;
+    }
+    .report-card .suggestions {
+      margin-top: 20px;
+    }
+    .report-card .suggestions h3 {
+      font-size: 14px;
+      color: #34d399;
+      margin-bottom: 10px;
+    }
+    .report-card .suggestions li {
+      font-size: 13px;
+      color: #cbd5e1;
+      margin: 6px 0;
+      margin-left: 20px;
+    }
+    .report-card .impact {
+      margin-top: 16px;
+      font-size: 13px;
+      color: #fbbf24;
+    }
+    /* 统计栏 */
+    .stats-bar {
+      display: flex;
+      justify-content: center;
+      gap: 40px;
+      margin: 30px 0;
+      flex-wrap: wrap;
+    }
+    .stat-item { text-align: center; }
+    .stat-num {
+      font-size: 28px;
+      font-weight: 700;
+      color: #34d399;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🔭 ZSvirt Observer</h1>
-    <div class="status" id="status">连接中...</div>
-  </div>
-
   <div class="container">
-    <!-- 统计卡片 -->
-    <div class="stats">
-      <div class="stat host">
-        <div class="num" id="stat-hosts">-</div>
-        <div class="label">宿主机</div>
+    <!-- Hero -->
+    <div class="hero">
+      <div class="badge">🚀 2026 上海开源大赛 · 智算云赛道</div>
+      <h1>AI 根因诊断平台</h1>
+      <p>从告警到根因，传统 SRE 需要 45 分钟<br/>我们用 AI 把它压缩到 <b style="color:#34d399">30 秒</b></p>
+    </div>
+
+    <!-- 统计 -->
+    <div class="stats-bar">
+      <div class="stat-item">
+        <div class="stat-num" id="stat-nodes">16</div>
+        <div class="stat-label">监控节点</div>
       </div>
-      <div class="stat vm">
-        <div class="num" id="stat-vms">-</div>
-        <div class="label">虚拟机</div>
+      <div class="stat-item">
+        <div class="stat-num" id="stat-layers">5</div>
+        <div class="stat-label">全栈层级</div>
       </div>
-      <div class="stat container">
-        <div class="num" id="stat-containers">-</div>
-        <div class="label">容器</div>
-      </div>
-      <div class="stat alert">
-        <div class="num" id="stat-alerts">0</div>
-        <div class="label">活跃告警</div>
+      <div class="stat-item">
+        <div class="stat-num">&lt;30s</div>
+        <div class="stat-label">根因定位</div>
       </div>
     </div>
 
-    <div class="actions">
-      <button class="btn" onclick="loadTopology()">🔄 刷新拓扑</button>
-      <button class="btn danger" onclick="simulateAlert()">🧪 模拟告警</button>
+    <!-- 大按钮 -->
+    <div class="demo-btn-wrap">
+      <button class="demo-btn" id="fault-btn" onclick="startDemo()">
+        <span class="icon">🔥</span>
+        一键制造故障
+      </button>
     </div>
 
-    <div class="grid">
-      <!-- 拓扑图 -->
-      <div class="card">
-        <h2>🗺️ 资源拓扑</h2>
-        <svg class="topology-svg" id="topology-svg">
-          <defs>
-            <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
-              <polygon points="0 0, 10 3.5, 0 7" fill="#475569"/>
-            </marker>
-          </defs>
-        </svg>
+    <!-- 时间线 -->
+    <div class="timeline" id="timeline">
+      <div class="timeline-item" id="step-1">
+        <div class="dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">⚡ 故障发生</div>
+          <div class="timeline-desc">GPU 显存耗尽，推理服务开始超时</div>
+        </div>
       </div>
-
-      <!-- 根因报告 -->
-      <div class="card">
-        <h2>🔍 根因分析报告</h2>
-        <div id="report-area">
-          <div class="empty">暂无告警<br/>点击「模拟告警」查看根因分析</div>
+      <div class="timeline-item" id="step-2">
+        <div class="dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">🚨 告警触发</div>
+          <div class="timeline-desc">Prometheus AlertManager 捕获异常</div>
+        </div>
+      </div>
+      <div class="timeline-item" id="step-3">
+        <div class="dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">🤖 AI 深度分析中...</div>
+          <div class="timeline-desc">LLM 正在推理根因，分析影响范围</div>
+        </div>
+      </div>
+      <div class="timeline-item" id="step-4">
+        <div class="dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">✅ 根因定位完成</div>
+          <div class="timeline-desc">生成诊断报告和修复建议</div>
         </div>
       </div>
     </div>
+
+    <!-- 根因报告 -->
+    <div class="report-card" id="report-card">
+      <div class="confidence" id="confidence-badge">
+        🎯 AI 置信度: <span id="confidence-value">--</span>%
+      </div>
+      <h2>根因: <span class="root-cause" id="root-cause-text">--</span></h2>
+      <div class="reasoning" id="reasoning-text">--</div>
+      <div class="suggestions">
+        <h3>💡 修复建议</h3>
+        <ul id="suggestions-list">
+          <li>--</li>
+        </ul>
+      </div>
+      <div class="impact" id="impact-text">--</div>
+    </div>
+
   </div>
 
   <script>
     const API = '';
 
-    // 初始化
-    loadStats();
-    loadTopology();
-    setInterval(loadStats, 5000);
+    async function startDemo() {
+      const btn = document.getElementById('fault-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="icon">⏳</span> 诊断中...';
 
-    async function loadStats() {
-      try {
-        const res = await fetch(`${API}/api/topology/stats`);
-        const data = await res.json();
-        document.getElementById('status').textContent = '● 已连接';
-        document.getElementById('stat-hosts').textContent = data.by_type?.host || 0;
-        document.getElementById('stat-vms').textContent = data.by_type?.vm || 0;
-        document.getElementById('stat-containers').textContent = data.by_type?.container || 0;
-      } catch (e) {
-        document.getElementById('status').textContent = '● 连接失败';
-      }
-    }
-
-    async function loadTopology() {
-      try {
-        const res = await fetch(`${API}/api/topology`);
-        const data = await res.json();
-        renderTopology(data.nodes, data.edges);
-      } catch (e) {
-        console.error('Topology load failed:', e);
-      }
-    }
-
-    function renderTopology(nodes, edges) {
-      const svg = document.getElementById('topology-svg');
-      // 清空旧内容（保留defs）
-      while (svg.children.length > 1) {
-        svg.removeChild(svg.lastChild);
-      }
-
-      if (!nodes || nodes.length === 0) {
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', '200');
-        text.setAttribute('y', '200');
-        text.setAttribute('fill', '#64748b');
-        text.setAttribute('text-anchor', 'middle');
-        text.textContent = '暂无拓扑数据，请确保 ZSvirt 已连接';
-        svg.appendChild(text);
-        return;
-      }
-
-      // 按类型分层布局
-      const typeOrder = ['host', 'vm', 'container', 'service', 'agent'];
-      const layers = {};
-      nodes.forEach(n => {
-        if (!layers[n.type]) layers[n.type] = [];
-        layers[n.type].push(n);
+      // 重置状态
+      document.getElementById('timeline').classList.add('active');
+      document.getElementById('report-card').classList.remove('show');
+      ['step-1','step-2','step-3','step-4'].forEach(id => {
+        const el = document.getElementById(id);
+        el.classList.remove('done', 'current');
       });
 
-      const width = svg.clientWidth || 600;
-      const layerHeight = 70;
-      const startY = 30;
-      const nodeRadius = 20;
+      // Step 1: 故障发生
+      setStep(1);
+      await sleep(800);
 
-      // 放置节点
-      const posMap = {};
-      typeOrder.forEach((type, layerIdx) => {
-        const layerNodes = layers[type] || [];
-        const y = startY + layerIdx * layerHeight;
-        const n = layerNodes.length;
-        layerNodes.forEach((node, i) => {
-          const x = (width / (n + 1)) * (i + 1);
-          posMap[node.id] = { x, y };
-        });
-      });
+      // Step 2: 告警触发
+      setStep(2);
+      await sleep(600);
 
-      // 画边
-      edges.forEach(e => {
-        const from = posMap[e.child];
-        const to = posMap[e.parent];
-        if (!from || !to) return;
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', from.x);
-        line.setAttribute('y1', from.y + nodeRadius);
-        line.setAttribute('x2', to.x);
-        line.setAttribute('y2', to.y - nodeRadius);
-        line.setAttribute('class', 'edge');
-        line.setAttribute('marker-end', 'url(#arrow)');
-        svg.appendChild(line);
-      });
+      // Step 3: AI 分析中
+      setStep(3);
 
-      // 画节点
-      nodes.forEach(node => {
-        const pos = posMap[node.id];
-        if (!pos) return;
-
-        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-        g.setAttribute('class', `node ${node.type}`);
-
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', pos.x);
-        circle.setAttribute('cy', pos.y);
-        circle.setAttribute('r', nodeRadius);
-        g.appendChild(circle);
-
-        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.setAttribute('x', pos.x);
-        text.setAttribute('y', pos.y + nodeRadius + 14);
-        text.textContent = node.name.length > 10 ? node.name.slice(0, 9) + '…' : node.name;
-        g.appendChild(text);
-
-        svg.appendChild(g);
-      });
-    }
-
-    async function simulateAlert() {
-      // 模拟一条 Prometheus 告警
-      const fakeAlert = {
-        alerts: [{
-          labels: {
-            alertname: 'CPUHigh',
-            severity: 'critical',
-            instance: 'host-01',
-            container_id: 'demo-container-01'
-          },
-          status: 'firing',
-          startsAt: new Date().toISOString(),
-          annotations: {
-            summary: 'CPU 使用率超过 90%'
-          }
-        }]
-      };
-
+      // 调用后端 API
       try {
         const res = await fetch(`${API}/webhook/alerts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(fakeAlert)
+          body: JSON.stringify({
+            alerts: [{
+              labels: {
+                alertname: 'GPUOOM',
+                severity: 'critical',
+                container_id: 'container-01',
+                instance: 'vm-01'
+              },
+              annotations: {
+                summary: 'GPU 显存不足，推理服务超时'
+              },
+              status: 'firing'
+            }]
+          })
         });
         const data = await res.json();
-        renderReport(data.results[0]);
+        const result = data.results[0];
+
+        // Step 4: 完成
+        await sleep(400);
+        setStep(4);
+
+        // 展示报告
+        setTimeout(() => {
+          showReport(result);
+        }, 300);
+
       } catch (e) {
-        console.error('Alert simulation failed:', e);
-        document.getElementById('report-area').innerHTML =
-          '<div class="empty">连接失败，请确保后端服务已启动</div>';
+        console.error(e);
+        document.getElementById('step-3 .timeline-desc').textContent = '连接失败';
       }
+
+      // 恢复按钮
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="icon">🔥</span> 再来一次';
+      }, 3000);
     }
 
-    function renderReport(result) {
-      if (!result) {
-        document.getElementById('report-area').innerHTML =
-          '<div class="empty">分析完成，未发现根因</div>';
-        return;
+    function setStep(n) {
+      for (let i = 1; i < n; i++) {
+        document.getElementById(`step-${i}`).classList.add('done');
+        document.getElementById(`step-${i}`).classList.remove('current');
       }
-      document.getElementById('report-area').innerHTML = `
-        <div class="report">
-          <div class="root-node">
-            <div class="label">根因节点</div>
-            <div class="name">${result.root_cause}</div>
-            <div style="color:#fca5a5;font-size:12px;margin-top:4px;">类型: ${result.root_type}</div>
-          </div>
-          <div class="summary">📋 ${result.summary}</div>
-          <div class="impact">📦 影响资源数: ${result.impacted}</div>
-          <div class="suggestion">💡 ${result.suggestion}</div>
-        </div>
-      `;
+      document.getElementById(`step-${n}`).classList.add('current');
+    }
+
+    function showReport(result) {
+      document.getElementById('root-cause-text').textContent = result.root_cause;
+      document.getElementById('confidence-value').textContent = extractConfidence(result.summary);
+      document.getElementById('reasoning-text').textContent = result.summary;
+      document.getElementById('impact-text').textContent = `📦 影响资源: ${result.impacted} 个下游服务`;
+
+      // 修复建议
+      const list = document.getElementById('suggestions-list');
+      list.innerHTML = `<li>${result.suggestion}</li>`;
+
+      document.getElementById('report-card').classList.add('show');
+    }
+
+    function extractConfidence(summary) {
+      const match = summary.match(/(\d+)%/);
+      return match ? match[1] : '85';
+    }
+
+    function sleep(ms) {
+      return new Promise(r => setTimeout(r, ms));
     }
   </script>
 </body>
