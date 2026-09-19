@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZSvirt Observer - 全栈可观测平台</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+    .header {
+      background: #1e293b;
+      padding: 16px 24px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header h1 { font-size: 18px; color: #34d399; }
+    .status { font-size: 12px; color: #94a3b8; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+    .card {
+      background: #1e293b;
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid #334155;
+    }
+    .card h2 { font-size: 14px; color: #34d399; margin-bottom: 16px; }
+    /* 拓扑图 */
+    .topology-svg { width: 100%; height: 400px; }
+    .node { cursor: pointer; }
+    .node circle { stroke: #334155; stroke-width: 2; transition: all 0.2s; }
+    .node:hover circle { stroke: #34d399; }
+    .node text { fill: #e2e8f0; font-size: 11px; text-anchor: middle; }
+    .node.host circle { fill: #16a34a; }
+    .node.vm circle { fill: #0d9488; }
+    .node.container circle { fill: #0891b2; }
+    .node.service circle { fill: #6366f1; }
+    .node.agent circle { fill: #7c3aed; }
+    .edge { stroke: #475569; stroke-width: 1.5; fill: none; }
+    /* 根因报告 */
+    .report { font-size: 13px; line-height: 1.8; }
+    .report .root-node {
+      background: #7f1d1d;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border-left: 4px solid #ef4444;
+    }
+    .report .root-node .label { color: #fca5a5; font-size: 11px; }
+    .report .root-node .name { font-size: 16px; font-weight: bold; color: #fff; margin-top: 4px; }
+    .report .summary { color: #e2e8f0; margin: 12px 0; }
+    .report .impact { color: #94a3b8; font-size: 12px; margin: 8px 0; }
+    .report .suggestion {
+      background: #1e3a5f;
+      padding: 10px;
+      border-radius: 6px;
+      border-left: 3px solid #3b82f6;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+    /* 统计卡片 */
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    @media (max-width: 600px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    .stat {
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+    }
+    .stat .num { font-size: 24px; font-weight: bold; }
+    .stat .label { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+    .stat.host .num { color: #34d399; }
+    .stat.vm .num { color: #14b8a6; }
+    .stat.container .num { color: #06b6d4; }
+    .stat.alert .num { color: #f87171; }
+    /* 按钮 */
+    .btn {
+      background: #34d399;
+      color: #0f172a;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .btn:hover { background: #10b981; }
+    .btn.danger { background: #ef4444; color: #fff; }
+    .btn.danger:hover { background: #dc2626; }
+    .actions { margin-bottom: 16px; display: flex; gap: 8px; }
+    .empty { text-align: center; color: #64748b; padding: 40px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔭 ZSvirt Observer</h1>
+    <div class="status" id="status">连接中...</div>
+  </div>
+
+  <div class="container">
+    <!-- 统计卡片 -->
+    <div class="stats">
+      <div class="stat host">
+        <div class="num" id="stat-hosts">-</div>
+        <div class="label">宿主机</div>
+      </div>
+      <div class="stat vm">
+        <div class="num" id="stat-vms">-</div>
+        <div class="label">虚拟机</div>
+      </div>
+      <div class="stat container">
+        <div class="num" id="stat-containers">-</div>
+        <div class="label">容器</div>
+      </div>
+      <div class="stat alert">
+        <div class="num" id="stat-alerts">0</div>
+        <div class="label">活跃告警</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" onclick="loadTopology()">🔄 刷新拓扑</button>
+      <button class="btn danger" onclick="simulateAlert()">🧪 模拟告警</button>
+    </div>
+
+    <div class="grid">
+      <!-- 拓扑图 -->
+      <div class="card">
+        <h2>🗺️ 资源拓扑</h2>
+        <svg class="topology-svg" id="topology-svg">
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+              <polygon points="0 0, 10 3.5, 0 7" fill="#475569"/>
+            </marker>
+          </defs>
+        </svg>
+      </div>
+
+      <!-- 根因报告 -->
+      <div class="card">
+        <h2>🔍 根因分析报告</h2>
+        <div id="report-area">
+          <div class="empty">暂无告警<br/>点击「模拟告警」查看根因分析</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+
+    // 初始化
+    loadStats();
+    loadTopology();
+    setInterval(loadStats, 5000);
+
+    async function loadStats() {
+      try {
+        const res = await fetch(`${API}/api/topology/stats`);
+        const data = await res.json();
+        document.getElementById('status').textContent = '● 已连接';
+        document.getElementById('stat-hosts').textContent = data.by_type?.host || 0;
+        document.getElementById('stat-vms').textContent = data.by_type?.vm || 0;
+        document.getElementById('stat-containers').textContent = data.by_type?.container || 0;
+      } catch (e) {
+        document.getElementById('status').textContent = '● 连接失败';
+      }
+    }
+
+    async function loadTopology() {
+      try {
+        const res = await fetch(`${API}/api/topology`);
+        const data = await res.json();
+        renderTopology(data.nodes, data.edges);
+      } catch (e) {
+        console.error('Topology load failed:', e);
+      }
+    }
+
+    function renderTopology(nodes, edges) {
+      const svg = document.getElementById('topology-svg');
+      // 清空旧内容（保留defs）
+      while (svg.children.length > 1) {
+        svg.removeChild(svg.lastChild);
+      }
+
+      if (!nodes || nodes.length === 0) {
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', '200');
+        text.setAttribute('y', '200');
+        text.setAttribute('fill', '#64748b');
+        text.setAttribute('text-anchor', 'middle');
+        text.textContent = '暂无拓扑数据，请确保 ZSvirt 已连接';
+        svg.appendChild(text);
+        return;
+      }
+
+      // 按类型分层布局
+      const typeOrder = ['host', 'vm', 'container', 'service', 'agent'];
+      const layers = {};
+      nodes.forEach(n => {
+        if (!layers[n.type]) layers[n.type] = [];
+        layers[n.type].push(n);
+      });
+
+      const width = svg.clientWidth || 600;
+      const layerHeight = 70;
+      const startY = 30;
+      const nodeRadius = 20;
+
+      // 放置节点
+      const posMap = {};
+      typeOrder.forEach((type, layerIdx) => {
+        const layerNodes = layers[type] || [];
+        const y = startY + layerIdx * layerHeight;
+        const n = layerNodes.length;
+        layerNodes.forEach((node, i) => {
+          const x = (width / (n + 1)) * (i + 1);
+          posMap[node.id] = { x, y };
+        });
+      });
+
+      // 画边
+      edges.forEach(e => {
+        const from = posMap[e.child];
+        const to = posMap[e.parent];
+        if (!from || !to) return;
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', from.x);
+        line.setAttribute('y1', from.y + nodeRadius);
+        line.setAttribute('x2', to.x);
+        line.setAttribute('y2', to.y - nodeRadius);
+        line.setAttribute('class', 'edge');
+        line.setAttribute('marker-end', 'url(#arrow)');
+        svg.appendChild(line);
+      });
+
+      // 画节点
+      nodes.forEach(node => {
+        const pos = posMap[node.id];
+        if (!pos) return;
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', `node ${node.type}`);
+
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', pos.x);
+        circle.setAttribute('cy', pos.y);
+        circle.setAttribute('r', nodeRadius);
+        g.appendChild(circle);
+
+        const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        text.setAttribute('x', pos.x);
+        text.setAttribute('y', pos.y + nodeRadius + 14);
+        text.textContent = node.name.length > 10 ? node.name.slice(0, 9) + '…' : node.name;
+        g.appendChild(text);
+
+        svg.appendChild(g);
+      });
+    }
+
+    async function simulateAlert() {
+      // 模拟一条 Prometheus 告警
+      const fakeAlert = {
+        alerts: [{
+          labels: {
+            alertname: 'CPUHigh',
+            severity: 'critical',
+            instance: 'host-01',
+            container_id: 'demo-container-01'
+          },
+          status: 'firing',
+          startsAt: new Date().toISOString(),
+          annotations: {
+            summary: 'CPU 使用率超过 90%'
+          }
+        }]
+      };
+
+      try {
+        const res = await fetch(`${API}/webhook/alerts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(fakeAlert)
+        });
+        const data = await res.json();
+        renderReport(data.results[0]);
+      } catch (e) {
+        console.error('Alert simulation failed:', e);
+        document.getElementById('report-area').innerHTML =
+          '<div class="empty">连接失败，请确保后端服务已启动</div>';
+      }
+    }
+
+    function renderReport(result) {
+      if (!result) {
+        document.getElementById('report-area').innerHTML =
+          '<div class="empty">分析完成，未发现根因</div>';
+        return;
+      }
+      document.getElementById('report-area').innerHTML = `
+        <div class="report">
+          <div class="root-node">
+            <div class="label">根因节点</div>
+            <div class="name">${result.root_cause}</div>
+            <div style="color:#fca5a5;font-size:12px;margin-top:4px;">类型: ${result.root_type}</div>
+          </div>
+          <div class="summary">📋 ${result.summary}</div>
+          <div class="impact">📦 影响资源数: ${result.impacted}</div>
+          <div class="suggestion">💡 ${result.suggestion}</div>
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

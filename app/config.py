@@ -10,7 +10,8 @@ class Settings(BaseSettings):
 
     # ZSvirt
     zsvirt_base_url: str = "http://localhost:5050"
-    zsvirt_api_key: str = ""
+    zsvirt_username: str = "admin"
+    zsvirt_password: str = "password"
 
     # Prometheus
     prometheus_url: str = "http://prometheus:9090"

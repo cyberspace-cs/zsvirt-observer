@@ -1,0 +1,170 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "zsvirt-topology",
+    "title": "ZSvirt 资源拓扑与根因分析",
+    "tags": ["zsvirt", "topology", "root-cause"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "panels": [
+      {
+        "id": 1,
+        "type": "stat",
+        "title": "宿主机",
+        "gridPos": {"h": 3, "w": 4, "x": 0, "y": 0},
+        "targets": [{"expr": "count(up{job=\"node\"})", "refId": "A"}],
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "fixed", "fixedColor": "green"},
+            "thresholds": {"steps": [{"color": "red", "value": 0}]}
+          }
+        }
+      },
+      {
+        "id": 2,
+        "type": "stat",
+        "title": "容器数量",
+        "gridPos": {"h": 3, "w": 4, "x": 4, "y": 0},
+        "targets": [{"expr": "count(container_last_seen)", "refId": "A"}]
+      },
+      {
+        "id": 3,
+        "type": "stat",
+        "title": "GPU 利用率 %",
+        "gridPos": {"h": 3, "w": 4, "x": 8, "y": 0},
+        "targets": [{"expr": "avg(DCGM_FI_DEV_GPU_UTIL)", "refId": "A"}],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "type": "stat",
+        "title": "活跃告警",
+        "gridPos": {"h": 3, "w": 4, "x": 12, "y": 0},
+        "targets": [{"expr": "count(ALERTS{state=\"firing\"})", "refId": "A"}],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 1},
+                {"color": "red", "value": 5}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "type": "timeseries",
+        "title": "CPU 使用率 %",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 3},
+        "targets": [
+          {
+            "expr": "100 - (avg by(instance)(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 0},
+                {"color": "yellow", "value": 70},
+                {"color": "red", "value": 90}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "type": "timeseries",
+        "title": "内存使用率 %",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 3},
+        "targets": [
+          {
+            "expr": "(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100",
+            "legendFormat": "{{instance}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "percent", "max": 100}
+        }
+      },
+      {
+        "id": 7,
+        "type": "timeseries",
+        "title": "GPU 显存使用 (MB)",
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 9},
+        "targets": [
+          {
+            "expr": "DCGM_FI_DEV_FB_USED",
+            "legendFormat": "GPU {{gpu}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {"unit": "decmbytes"}
+        }
+      },
+      {
+        "id": 8,
+        "type": "table",
+        "title": "容器状态",
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 9},
+        "targets": [
+          {
+            "expr": "container_memory_usage_bytes{name!=\"\"}",
+            "format": "table",
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "__name__": true,
+                "instance": true,
+                "job": true
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "type": "alertGroups",
+        "title": "告警列表",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 15},
+        "options": {
+          "showInstances": true,
+          "showReceivers": true
+        }
+      }
+    ],
+    "time": {"from": "now-1h", "to": "now"},
+    "refresh": "10s"
+  },
+  "meta": {
+    "isFeatured": false,
+    "folderTitle": "ZSvirt"
+  }
+}
