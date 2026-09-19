@@ -1,4 +1,4 @@
-"""根因分析引擎 —— 沿拓扑图自动下钻定位故障根因"""
+"""根因分析引擎 —— 沿拓扑图自动下钻定位故障根因 + AI 智能解读"""
 import logging
 from typing import Dict, List, Optional
 from datetime import datetime
@@ -6,6 +6,7 @@ from datetime import datetime
 from app.topology import TopologyGraph
 from app.models import NodeType, RootCauseReport
 from app.alert_merger import AlertMerger
+from app.llm_client import get_llm
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +33,9 @@ class RootCauseAnalyzer:
         self.merger = AlertMerger()
         self.recent_alerts: Dict[str, List[Dict]] = {}
 
-    def analyze(self, alert: Dict) -> RootCauseReport:
+    async def analyze(self, alert: Dict) -> RootCauseReport:
         """
-        对一条告警执行根因分析
+        对一条告警执行根因分析（规则引擎 + AI 智能解读）
         """
         labels = alert.get("labels", {})
         alertname = labels.get("alertname", "unknown")
@@ -53,7 +54,7 @@ class RootCauseAnalyzer:
         # 4. 收集相关告警
         related = self._collect_related_alerts(root_node_id, impacted)
 
-        # 5. 生成报告
+        # 5. 规则引擎生成基础报告
         root_node = self.graph.nodes.get(root_node_id, {})
         report = RootCauseReport(
             root_node_id=root_node_id,
@@ -66,8 +67,45 @@ class RootCauseAnalyzer:
             generated_at=datetime.now(),
         )
 
+        # 6. AI 智能解读（可选，失败不影响主流程）
+        try:
+            ai_analysis = await self._ai_analyze(alert, report)
+            if ai_analysis:
+                report.summary = f"{report.summary}\n\n🤖 AI 解读: {ai_analysis}"
+        except Exception as e:
+            logger.warning(f"AI analysis skipped: {e}")
+
         logger.info(f"Root cause: {report.root_node_name} ({report.root_node_type})")
         return report
+
+    async def _ai_analyze(self, alert: Dict, report: RootCauseReport) -> str:
+        """调用 LLM 做智能根因解读"""
+        llm = get_llm()
+
+        alert_summary = (
+            f"告警名: {alert.get('labels', {}).get('alertname', 'unknown')}\n"
+            f"级别: {alert.get('labels', {}).get('severity', 'unknown')}\n"
+            f"描述: {alert.get('annotations', {}).get('summary', '无')}"
+        )
+
+        topology_context = (
+            f"根因节点: {report.root_node_name} ({report.root_node_type.value})\n"
+            f"影响资源数: {len(report.impacted_resources)}"
+        )
+
+        history_alerts = "\n".join([
+            f"- {a.get('labels', {}).get('alertname', '?')}"
+            for a in report.related_alerts[:5]
+        ]) or "无"
+
+        # LLM 调用目前是同步的，用 run_in_executor 避免阻塞
+        import asyncio
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            lambda: llm.analyze_alert(alert_summary, topology_context, history_alerts)
+        )
+        return result
 
     def _locate_node(self, labels: Dict) -> Optional[str]:
         """从告警标签中定位拓扑节点"""

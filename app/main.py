@@ -150,7 +150,7 @@ async def receive_alert(request: Request):
 
     for alert in alerts:
         analyzer.record_alert(alert)
-        report = analyzer.analyze(alert)
+        report = await analyzer.analyze(alert)
         results.append({
             "alertname": alert.get("labels", {}).get("alertname"),
             "root_cause": report.root_node_name,
